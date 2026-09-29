@@ -1,0 +1,24 @@
+spring:
+  application:
+    name: project_interior
+  datasource:
+    url: jdbc:h2:mem:project_interior;MODE=PostgreSQL
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+  docker:
+    compose:
+      enabled: false
+
+app:
+  upload:
+    dir: ./build/test-uploads
+
+gemini:
+  api-key: test-key
+  model: gemini-2.5-flash
+  base-url: https://generativelanguage.googleapis.com/v1beta
