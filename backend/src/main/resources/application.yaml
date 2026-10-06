@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: project_interior
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+app:
+  upload:
+    dir: ./uploads
+
+gemini:
+  api-key: ${GEMINI_API_KEY:}
+  model: gemini-flash-lite-latest
+  base-url: https://generativelanguage.googleapis.com/v1beta
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
