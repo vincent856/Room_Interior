@@ -9,19 +9,25 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import vincent.project_interior.domain.room.dto.request.MeasurementRequest;
+import vincent.project_interior.domain.room.dto.request.MeasurementsUpdateRequest;
 import vincent.project_interior.domain.room.dto.request.RoomCreateRequest;
+import vincent.project_interior.domain.room.dto.response.MeasurementResponse;
 import vincent.project_interior.domain.room.dto.response.RoomAnalysisResponse;
 import vincent.project_interior.domain.room.dto.response.RoomPhotoResponse;
 import vincent.project_interior.domain.room.dto.response.RoomResponse;
 import vincent.project_interior.domain.room.entity.FurnitureItem;
+import vincent.project_interior.domain.room.entity.PhotoMeasurement;
 import vincent.project_interior.domain.room.entity.Room;
 import vincent.project_interior.domain.room.entity.RoomAnalysis;
 import vincent.project_interior.domain.room.entity.RoomPhoto;
 import vincent.project_interior.domain.room.exception.RoomErrorCode;
 import vincent.project_interior.domain.room.exception.RoomException;
+import vincent.project_interior.domain.room.repository.RoomPhotoRepository;
 import vincent.project_interior.domain.room.repository.RoomRepository;
 import vincent.project_interior.global.storage.FileStorageService;
 import vincent.project_interior.infra.externalapi.gemini.GeminiVisionClient;
+import vincent.project_interior.infra.externalapi.gemini.dto.MeasurementInput;
 import vincent.project_interior.infra.externalapi.gemini.dto.PhotoInput;
 import vincent.project_interior.infra.externalapi.gemini.dto.RoomVisionAnalysisRequest;
 import vincent.project_interior.infra.externalapi.gemini.dto.RoomVisionAnalysisResult;
@@ -42,6 +48,7 @@ public class RoomService {
   );
 
   private final RoomRepository roomRepository;
+  private final RoomPhotoRepository roomPhotoRepository;
   private final FileStorageService fileStorageService;
   private final GeminiVisionClient geminiVisionClient;
 
@@ -73,6 +80,29 @@ public class RoomService {
   }
 
   @Transactional
+  public List<MeasurementResponse> updatePhotoMeasurements(UUID roomId, UUID photoId,
+      MeasurementsUpdateRequest request) {
+    log.debug("사진 실측값 저장 시도: roomId={}, photoId={}", roomId, photoId);
+    findRoom(roomId);
+    RoomPhoto photo = findPhoto(roomId, photoId);
+
+    for (MeasurementRequest item : request.measurements()) {
+      if (item.startX().equals(item.endX()) && item.startY().equals(item.endY())) {
+        throw new RoomException(RoomErrorCode.INVALID_MEASUREMENT_POINTS);
+      }
+    }
+
+    photo.clearMeasurements();
+    request.measurements().forEach(item -> PhotoMeasurement.create(
+        photo, item.startX(), item.startY(), item.endX(), item.endY(), item.lengthCm(),
+        item.label()));
+    roomRepository.flush();
+    log.info("사진 실측값 저장 완료: roomId={}, photoId={}, count={}", roomId, photoId,
+        request.measurements().size());
+    return photo.getMeasurements().stream().map(MeasurementResponse::from).toList();
+  }
+
+  @Transactional
   public RoomAnalysisResponse analyzeRoom(UUID roomId) {
     log.debug("방 구조 분석 시도: roomId={}", roomId);
     Room room = findRoom(roomId);
@@ -84,7 +114,11 @@ public class RoomService {
         .map(photo -> new PhotoInput(
             fileStorageService.load(photo.getStoredPath()),
             resolveContentType(photo.getStoredPath()),
-            photo.getDirection()))
+            photo.getDirection(),
+            photo.getMeasurements().stream()
+                .map(m -> new MeasurementInput(m.getStartX(), m.getStartY(), m.getEndX(),
+                    m.getEndY(), m.getLengthCm(), m.getLabel()))
+                .toList()))
         .toList();
     RoomVisionAnalysisRequest request = new RoomVisionAnalysisRequest(
         photos, room.getWidthCm(), room.getLengthCm(), room.getHeightCm());
@@ -120,6 +154,15 @@ public class RoomService {
   private Room findRoom(UUID roomId) {
     return roomRepository.findById(roomId)
         .orElseThrow(() -> new RoomException(RoomErrorCode.ROOM_NOT_FOUND));
+  }
+
+  private RoomPhoto findPhoto(UUID roomId, UUID photoId) {
+    RoomPhoto photo = roomPhotoRepository.findById(photoId)
+        .orElseThrow(() -> new RoomException(RoomErrorCode.PHOTO_NOT_FOUND));
+    if (!photo.getRoom().getId().equals(roomId)) {
+      throw new RoomException(RoomErrorCode.PHOTO_NOT_FOUND);
+    }
+    return photo;
   }
 
   private void validateImageFile(MultipartFile file) {

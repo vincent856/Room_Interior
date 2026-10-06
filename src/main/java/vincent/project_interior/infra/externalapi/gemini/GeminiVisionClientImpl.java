@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import vincent.project_interior.infra.externalapi.gemini.dto.FurnitureItemResult;
+import vincent.project_interior.infra.externalapi.gemini.dto.MeasurementInput;
 import vincent.project_interior.infra.externalapi.gemini.dto.PhotoInput;
 import vincent.project_interior.infra.externalapi.gemini.dto.RoomVisionAnalysisRequest;
 import vincent.project_interior.infra.externalapi.gemini.dto.RoomVisionAnalysisResult;
@@ -116,9 +117,24 @@ public class GeminiVisionClientImpl implements GeminiVisionClient {
         .append("cm, 세로 ").append(request.lengthCm())
         .append("cm, 높이 ").append(request.heightCm())
         .append("cm 입니다. 첨부된 사진들을 보고 방의 구조와 현재 상태를 분석해주세요.");
-    for (PhotoInput photo : request.photos()) {
+    List<PhotoInput> photos = request.photos();
+    for (int i = 0; i < photos.size(); i++) {
+      PhotoInput photo = photos.get(i);
+      int photoNumber = i + 1;
       if (photo.direction() != null) {
-        prompt.append(" 다음 사진의 촬영 방향: ").append(photo.direction()).append(".");
+        prompt.append(" 사진 ").append(photoNumber).append("의 촬영 방향: ")
+            .append(photo.direction()).append(".");
+      }
+      for (MeasurementInput measurement : photo.measurements()) {
+        prompt.append(" 사진 ").append(photoNumber)
+            .append("의 좌표 (").append(measurement.startX()).append(",")
+            .append(measurement.startY()).append(")-(").append(measurement.endX()).append(",")
+            .append(measurement.endY()).append(") 구간의 실측 길이는 ")
+            .append(measurement.lengthCm()).append("cm 입니다");
+        if (measurement.label() != null) {
+          prompt.append(" (").append(measurement.label()).append(")");
+        }
+        prompt.append(".");
       }
     }
     return prompt.toString();

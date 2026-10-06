@@ -13,7 +13,10 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
+import vincent.project_interior.domain.room.dto.request.MeasurementRequest;
+import vincent.project_interior.domain.room.dto.request.MeasurementsUpdateRequest;
 import vincent.project_interior.domain.room.dto.request.RoomCreateRequest;
+import vincent.project_interior.domain.room.dto.response.MeasurementResponse;
 import vincent.project_interior.domain.room.dto.response.RoomAnalysisResponse;
 import vincent.project_interior.domain.room.dto.response.RoomPhotoResponse;
 import vincent.project_interior.domain.room.dto.response.RoomResponse;
@@ -144,5 +147,76 @@ class RoomServiceTest {
         .isInstanceOf(RoomException.class)
         .extracting(e -> ((RoomException) e).getErrorCode())
         .isEqualTo(RoomErrorCode.ANALYSIS_FAILED);
+  }
+
+  @Test
+  void 사진에_실측값을_등록하면_저장되고_다시_등록하면_기존_값을_대체한다() {
+    RoomResponse room = roomService.createRoom(
+        new RoomCreateRequest("드레스룸", 250, 200, 230));
+    MockMultipartFile imageFile = new MockMultipartFile(
+        "file", "wall.jpg", "image/jpeg", new byte[]{1, 2, 3, 4});
+    RoomPhotoResponse photo = roomService.addPhoto(room.id(), imageFile, "NORTH");
+
+    List<MeasurementResponse> firstResult = roomService.updatePhotoMeasurements(
+        room.id(), photo.id(), new MeasurementsUpdateRequest(List.of(
+            new MeasurementRequest(0.1, 0.2, 0.4, 0.2, 60, "냉장고 폭"))));
+
+    assertThat(firstResult).hasSize(1);
+    assertThat(firstResult.get(0).lengthCm()).isEqualTo(60);
+    assertThat(firstResult.get(0).label()).isEqualTo("냉장고 폭");
+
+    List<MeasurementResponse> secondResult = roomService.updatePhotoMeasurements(
+        room.id(), photo.id(), new MeasurementsUpdateRequest(List.of(
+            new MeasurementRequest(0.0, 0.0, 1.0, 0.0, 300, "벽 길이"))));
+
+    assertThat(secondResult).hasSize(1);
+    assertThat(secondResult.get(0).lengthCm()).isEqualTo(300);
+    assertThat(secondResult.get(0).label()).isEqualTo("벽 길이");
+  }
+
+  @Test
+  void 존재하지_않는_사진에_실측값을_등록하면_PHOTO_NOT_FOUND_예외가_발생한다() {
+    RoomResponse room = roomService.createRoom(
+        new RoomCreateRequest("현관", 150, 150, 230));
+    UUID missingPhotoId = UUID.randomUUID();
+
+    assertThatThrownBy(() -> roomService.updatePhotoMeasurements(
+        room.id(), missingPhotoId, new MeasurementsUpdateRequest(List.of())))
+        .isInstanceOf(RoomException.class)
+        .extracting(e -> ((RoomException) e).getErrorCode())
+        .isEqualTo(RoomErrorCode.PHOTO_NOT_FOUND);
+  }
+
+  @Test
+  void 시작점과_끝점이_같은_실측값을_등록하면_INVALID_MEASUREMENT_POINTS_예외가_발생한다() {
+    RoomResponse room = roomService.createRoom(
+        new RoomCreateRequest("복도", 100, 300, 230));
+    MockMultipartFile imageFile = new MockMultipartFile(
+        "file", "wall.jpg", "image/jpeg", new byte[]{1, 2, 3, 4});
+    RoomPhotoResponse photo = roomService.addPhoto(room.id(), imageFile, "NORTH");
+
+    assertThatThrownBy(() -> roomService.updatePhotoMeasurements(
+        room.id(), photo.id(), new MeasurementsUpdateRequest(List.of(
+            new MeasurementRequest(0.5, 0.5, 0.5, 0.5, 60, null)))))
+        .isInstanceOf(RoomException.class)
+        .extracting(e -> ((RoomException) e).getErrorCode())
+        .isEqualTo(RoomErrorCode.INVALID_MEASUREMENT_POINTS);
+  }
+
+  @Test
+  void 다른_방_소속의_사진으로_실측값을_등록하면_PHOTO_NOT_FOUND_예외가_발생한다() {
+    RoomResponse roomA = roomService.createRoom(
+        new RoomCreateRequest("방A", 300, 300, 230));
+    RoomResponse roomB = roomService.createRoom(
+        new RoomCreateRequest("방B", 300, 300, 230));
+    MockMultipartFile imageFile = new MockMultipartFile(
+        "file", "wall.jpg", "image/jpeg", new byte[]{1, 2, 3, 4});
+    RoomPhotoResponse photoOfRoomA = roomService.addPhoto(roomA.id(), imageFile, "NORTH");
+
+    assertThatThrownBy(() -> roomService.updatePhotoMeasurements(
+        roomB.id(), photoOfRoomA.id(), new MeasurementsUpdateRequest(List.of())))
+        .isInstanceOf(RoomException.class)
+        .extracting(e -> ((RoomException) e).getErrorCode())
+        .isEqualTo(RoomErrorCode.PHOTO_NOT_FOUND);
   }
 }

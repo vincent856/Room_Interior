@@ -1,10 +1,14 @@
 package vincent.project_interior.domain.room.entity;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -25,6 +29,9 @@ public class RoomPhoto extends BaseEntity {
 
   private String direction;
 
+  @OneToMany(mappedBy = "photo", cascade = CascadeType.ALL, orphanRemoval = true)
+  private final List<PhotoMeasurement> measurements = new ArrayList<>();
+
   private RoomPhoto(Room room, String storedPath, String direction) {
     this.room = Objects.requireNonNull(room);
     this.storedPath = Objects.requireNonNull(storedPath);
@@ -35,5 +42,13 @@ public class RoomPhoto extends BaseEntity {
     RoomPhoto photo = new RoomPhoto(room, storedPath, direction);
     room.addPhoto(photo);
     return photo;
+  }
+
+  public void addMeasurement(PhotoMeasurement measurement) {
+    measurements.add(measurement);
+  }
+
+  public void clearMeasurements() {
+    measurements.clear();
   }
 }
