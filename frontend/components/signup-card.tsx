@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { ApiError } from '@/lib/api/auth'
+import { useAuth } from '@/lib/auth-context'
 
 const EMAIL_DOMAINS = ['naver.com', 'gmail.com', 'daum.net', 'kakao.com', 'hanmail.net', 'nate.com']
 const CUSTOM_DOMAIN = '직접 입력'
@@ -68,6 +70,7 @@ function NaverIcon() {
 }
 
 export function SignupCard({ onLogin }: { onLogin: () => void }) {
+  const { signUp } = useAuth()
   const [emailId, setEmailId] = useState('')
   const [domain, setDomain] = useState('')
   const [customDomain, setCustomDomain] = useState('')
@@ -83,6 +86,8 @@ export function SignupCard({ onLogin }: { onLogin: () => void }) {
   const [submitted, setSubmitted] = useState(false)
   const [verifyNotice, setVerifyNotice] = useState(false)
   const [done, setDone] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [serverError, setServerError] = useState('')
 
   const isCustom = domain === CUSTOM_DOMAIN
   const allChecked = Object.values(agreements).every(Boolean)
@@ -100,10 +105,22 @@ export function SignupCard({ onLogin }: { onLogin: () => void }) {
   const toggleAll = (checked: boolean) =>
     setAgreements({ age: checked, terms: checked, privacy: checked, marketing: checked })
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     setSubmitted(true)
-    if (!hasError) setDone(true)
+    setServerError('')
+    if (hasError) return
+
+    const email = `${emailId}@${isCustom ? customDomain : domain}`
+    setSubmitting(true)
+    try {
+      await signUp(email, password, nickname)
+      setDone(true)
+    } catch (error) {
+      setServerError(error instanceof ApiError ? error.message : '회원가입에 실패했습니다.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const fieldError = (message: string) =>
@@ -254,9 +271,16 @@ export function SignupCard({ onLogin }: { onLogin: () => void }) {
           {fieldError(errors.terms)}
         </fieldset>
 
-        <button className="signup-submit" type="submit">회원가입하기</button>
+        {serverError ? (
+          <p className="signup-error" role="alert">{serverError}</p>
+        ) : null}
+        <button className="signup-submit" type="submit" disabled={submitting}>
+          {submitting ? '가입 처리 중...' : '회원가입하기'}
+        </button>
         {done ? (
-          <p className="signup-done" role="status">입력하신 정보를 확인했어요. 회원가입 기능은 준비 중입니다.</p>
+          <p className="signup-done" role="status">
+            회원가입이 완료됐어요. 로그인해주세요.
+          </p>
         ) : null}
       </form>
 
