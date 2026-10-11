@@ -22,7 +22,7 @@ const agreementItems: { key: keyof Agreements; label: string; required: boolean 
 ]
 
 function validatePassword(value: string) {
-  if (value.length < 8) return '8자 이상 입력해주세요.'
+  if (value.length < 8 || value.length > 20) return '8~20자로 입력해주세요.'
   if (!/[A-Za-z]/.test(value) || !/\d/.test(value)) return '영문, 숫자를 포함해주세요.'
   return ''
 }
@@ -204,7 +204,7 @@ export function SignupCard({ onLogin }: { onLogin: () => void }) {
 
         <div className="signup-field">
           <label htmlFor="signup-password">비밀번호</label>
-          <p className="signup-desc">영문, 숫자를 포함한 8자 이상의 비밀번호를 입력해주세요.</p>
+          <p className="signup-desc">영문, 숫자를 포함한 8~20자의 비밀번호를 입력해주세요.</p>
           <input
             id="signup-password"
             type="password"
