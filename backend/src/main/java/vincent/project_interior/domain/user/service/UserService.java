@@ -4,6 +4,7 @@ import java.util.Locale;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,7 +33,12 @@ public class UserService {
     }
     String encodedPassword = passwordEncoder.encode(request.password());
     User user = User.createUser(normalizedEmail, encodedPassword, request.nickname());
-    User saved = userRepository.save(user);
+    User saved;
+    try {
+      saved = userRepository.saveAndFlush(user);
+    } catch (DataIntegrityViolationException e) {
+      throw new UserException(UserErrorCode.DUPLICATE_EMAIL);
+    }
     log.info("회원가입 완료: userId={}", saved.getId());
     return UserResponse.from(saved);
   }
