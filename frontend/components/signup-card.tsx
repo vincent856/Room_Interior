@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { ApiError } from '@/lib/api/auth'
 import { useAuth } from '@/lib/auth-context'
 
@@ -88,6 +88,7 @@ export function SignupCard({ onLogin }: { onLogin: () => void }) {
   const [done, setDone] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [serverError, setServerError] = useState('')
+  const isSubmittingRef = useRef(false)
 
   const isCustom = domain === CUSTOM_DOMAIN
   const allChecked = Object.values(agreements).every(Boolean)
@@ -110,8 +111,10 @@ export function SignupCard({ onLogin }: { onLogin: () => void }) {
     setSubmitted(true)
     setServerError('')
     if (hasError) return
+    if (isSubmittingRef.current) return
 
     const email = `${emailId}@${isCustom ? customDomain : domain}`
+    isSubmittingRef.current = true
     setSubmitting(true)
     try {
       await signUp(email, password, nickname)
@@ -119,6 +122,7 @@ export function SignupCard({ onLogin }: { onLogin: () => void }) {
     } catch (error) {
       setServerError(error instanceof ApiError ? error.message : '회원가입에 실패했습니다.')
     } finally {
+      isSubmittingRef.current = false
       setSubmitting(false)
     }
   }
